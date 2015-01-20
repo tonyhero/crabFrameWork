@@ -1,0 +1,8 @@
+.idea/*
+*.swp
+*.tmp
+config/web.conf
+config/debug.conf
+config/yyf.conf
+upload/*
+.DS_Store

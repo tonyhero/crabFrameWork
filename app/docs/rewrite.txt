@@ -1,0 +1,36 @@
+Apache
+---------------------------------------------------------------
+<IfModule mod_rewrite.c>
+	RewriteEngine on
+	RewriteBase /
+        RewriteCond %{REQUEST_FILENAME} !^.*\.(gif|jpg|jpeg|png|swf|css|js)$
+	RewriteRule ^(.*)$ index.php?$1 [L]
+</IfModule>
+
+
+
+Nginx
+---------------------------------------------------------------
+    server {
+        listen       80 default;
+        #server_name  kf.backend.playcrab.com;
+        server_name  kf.backend.playcrab.com;
+        root   /data/work/web/customer_service_center;
+        access_log /data/work/web/log/customer_service_center/access.log;
+        error_log /data/work/web/log/customer_service_center/error.log;
+        charset utf-8;
+
+        index  index.html index.htm index.php;
+        allow  all;
+        location / {
+            if ($request_filename !~ "^.*.(gif|jpg|jpeg|png|swf|css|js|woff|ttf|svg)$"){
+                rewrite ^/(.*)$ /index.php?_url=/$1 last;
+            }
+        }
+        location ~ \.php$ {
+            try_files $uri =403;
+            fastcgi_pass   127.0.0.1:9000;
+            fastcgi_index  index.php;
+            include        fastcgi.conf;
+            fastcgi_param HTTPS $https if_not_empty;
+        }

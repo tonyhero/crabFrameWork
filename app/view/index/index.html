@@ -1,0 +1,707 @@
+<?php include("view/header.html");?>
+<div>
+    <h1>我的工作台
+        <small class="pull-right">
+            <div class="btn-group">
+                <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown">
+                    咨询
+                    <span class="caret"></span>
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a id="addConsult">提交咨询</a></li>
+                    <li><a href="/consult">咨询列表</a></li>
+                </ul>
+            </div>
+
+            <div class="btn-group">
+                <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown">
+                    提交工单
+                    <span class="caret"></span>
+                </button>
+                <ul class="dropdown-menu">
+                    <?php
+                    foreach($appeal_sources as $source )
+                    {
+                        echo "<li><a href=\"#\" data-action=\"create-appeal\" data-source-id=\"{$source["id"]}\">{$source["name"]}</a></li>
+                    ";
+                    }
+                    ?>
+                </ul>
+            </div>
+            <a class="btn btn-default" href="/workflow/accept">接取工单</a>
+        </small>
+    </h1>
+</div>
+<div class="row">
+    <div class="col-md-7">
+        <div class="info-box">
+            <h4 class="grid-title">待处理单据</h4>
+            <hr class="seperator"/>
+            <table class="table">
+                <thead>
+                <tr>
+                    <th>问题类型</th>
+                    <th>剩余数量</th>
+                    <th>平均等待时长</th>
+                    <th>最长等待时长</th>
+                </tr>
+                </thead>
+                <tbody>
+                <?php foreach($secondaryFormTypes as $typeId => $type): ?>
+                <tr>
+                    <td><?php echo $type ;?></td>
+                    <?php if(isset($appealStatus[$typeId])) :?>
+                    <td><?php echo $appealStatus[$typeId]["count"];?></td>
+                    <td><?php echo Tools::formatSecondsToTime( $appealStatus[$typeId]["avg"]);?></td>
+                    <td><?php echo Tools::formatSecondsToTime($appealStatus[$typeId]["max"]);?></td>
+                    <?php else : ?>
+                    <td>0</td>
+                    <td>0:0:0</td>
+                    <td>0:0:0</td>
+                    <?php endif ; ?>
+                </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="info-box top-buffer">
+            <h4 class="grid-title">指派给我的单据
+                <small class="pull-right">总计<?php echo $myAppealsCount?>单</small>
+            </h4>
+            <hr class="seperator"/>
+            <?php if(!empty($myAppeals)): ?>
+            <table class="table" id="table-myappeals">
+                <thead>
+                <tr>
+                    <th>单据ID</th>
+                    <th>单据类型</th>
+                    <th>指派时间</th>
+                    <th>等待时间</th>
+                    <th>预期结束时间</th>
+                    <th>指派人</th>
+                </tr>
+                </thead>
+                <tbody>
+                <?php foreach($myAppeals as $appeal) :?>
+                <tr data-id="<?php echo $appeal['id'] ?>" class="my-appeal">
+                    <td><?php echo $appeal["appealcode"] ?></td>
+                    <td><?php echo $secondaryFormTypes[$appeal["fsecondarytype_id"]] ?></td>
+                    <td><?php echo $appeal["refer_time"]; ?></td>
+                    <td><?php echo Tools::formatSecondsToTime($appeal["waiting_time"]); ?></td>
+                    <td><?php echo ($appeal["expectfinish_time"]); ?></td>
+                    <td><?php echo $appeal["refer_from_user"] ?></td>
+                </tr>
+                <?php endforeach ;
+                ?>
+                </tbody>
+            </table>
+
+            <div><a href="/profile/myappeals" class="pull-right"> 更多>></a></div>
+            <?php else : ?>
+
+            暂时没有指派的单据，点<a href="/workflow/accept">这里</a>取接工单
+            <?php endif; ?>
+            <div class="clearfix"></div>
+        </div>
+    </div>
+    <div class="col-md-5">
+        <div class="info-box">
+            <h4 class="grid-title">工作日志
+                <small class="pull-right"><a href="/profile/usercenter" class="pull-right"> 更多>></a></small>
+            </h4>
+            <hr class="seperator"/>
+            <?php if(!empty($myLog)) :
+                foreach($myLog as $log) :
+            ?>
+            <div>
+                <div><span><strong>操作:</strong><?php echo $log["action_type"];?></span><span class="pull-right"><strong>单据类型:</strong><?php echo $secondaryFormTypes[$log["fsecondarytype_id"]];?></span>
+                </div>
+                <div>
+                    <span><strong>单据ID:</strong><a href="javascript:void(0)" onclick="showInfo(<?php echo $log["appeal_id"] ?>)"><?php echo $log["appealcode"];?></a></span><span
+                        class="pull-right"><strong>完成时间:</strong><?php echo Tools::trimPgTimestamp($log["create_time"]);?></span>
+                </div>
+            </div>
+            <hr/>
+            <?php
+                endforeach ;
+                endif;
+            ?>
+
+
+            <br/>
+
+            <div><a class="pull-right" href="/profile/usercenter">更多>></a></div>
+            <div class="clearfix"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 提交工单Modal -->
+<div class="modal fade" id="assign-modal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title" id="myModalLabel">指派</h4>
+            </div>
+            <div class="modal-body">
+
+                <div class="form-group form-inline">
+                    <select class="form-control" id="select-account-group" name="user_belong_role">
+                        <option value='-1'>-选择角色组-</option>
+                        <?php  foreach($role_list_info as $role_name):  ?>
+                        <option value='<?php echo $role_name;?>'><?php echo $role_name;?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select class="form-control" disabled id="select-account" name="user_belong">
+                    </select>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="btnAssign" disabled>保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- 提交工单Modal -->
+<div class="modal fade" id="create-consult-modal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title" id="myModalLabel">提交咨询</h4>
+            </div>
+            <div class="modal-body">
+                <form class="form-horizontal" id="create-consult-form" method="post" action="/consult/create"
+                      enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label class="col-sm-4 control-label">来源:</label>
+                        <div class="col-sm-5">
+                            <select class="form-control" name="source">
+                                <option>邮件</option>
+                                <option>移动QQ</option>
+                                <option>PCQQ</option>
+                                <option>电话</option>
+                                <option>后台</option>
+                                <option>论坛</option>
+                                <option>其他</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="col-sm-4 control-label">咨询类型:</label>
+                        <div class="col-sm-5">
+                            <select class="form-control" name="consult_type">
+                                <option>数据查询</option>
+                                <option>回档恢复</option>
+                                <option>充值掉单</option>
+                                <option>找回帐号</option>
+                                <option>修改密码</option>
+                                <!--<option>活动异常</option>-->
+                                <option>BUG反馈</option>
+                                <option>意见建议</option>
+                                <option>账号问题咨询</option>
+                                <option>充值问题咨询</option>
+                                <option>游戏问题咨询</option>
+                                <option>运行问题咨询</option>
+                                <option>常规功能异常</option>
+                                <option>线下活动问题</option>
+                                <option>线上活动问题</option>
+                                <option>跨服战问题</option>
+                                <option>联盟问题</option>
+                                <option>投诉类</option>
+                                <option>其他问题咨询</option>
+                                <option>无效咨询</option>
+                                <option>问题处理进度咨询</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="col-sm-4 control-label">产品:</label>
+                        <div class="col-sm-5">
+                            <select class="form-control" name="product">
+                                <option value="">--请选择--</option>
+                                <option>大掌门</option>
+                                <option>乱世曲</option>
+                                <option>暴走七龙珠</option>
+                                <option>逗比忍者</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="col-sm-4 control-label">渠道:</label>
+                        <div class="col-sm-5">
+                            <select class="form-control" name="channel">
+                                <option value="">--请选择--</option>
+                                <option>appstore</option>
+                                <option>appstoretw</option>
+                                <option>iospp</option>
+                                <option>iostb</option>
+                                <option>mix</option>
+                                <option>iosky</option>
+                                <option>winphone</option>
+                                <option>ios91</option>
+                                <option>qqandroid</option>
+                                <option>xp</option>
+                                <option>乱世区-appstore</option>
+                                <option>乱世区-android</option>
+                                <option>乱世区-ios</option>
+                                <option>乱世区-ourpalm</option>
+                                <option>乱世区-test</option>
+                                <option>暴走七龙珠-android</option>
+                                <option>逗比忍者-winphone</option>
+                                <option>暴走七龙珠-androidtw</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="col-sm-4 control-label">来源号码/邮箱:</label>
+
+                        <div class="col-sm-5">
+                            <input class="form-control" name="contact_info" type="text" required="true"/>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="col-sm-4 control-label">游戏账号/PID:</label>
+
+                        <div class="col-sm-5">
+                            <input class="form-control" name="player_account" type="text"/>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="col-sm-4 control-label">游戏昵称:</label>
+
+                        <div class="col-sm-5">
+                            <input class="form-control" name="nickname" type="text"/>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="col-sm-4 control-label">VIP等级:</label>
+
+                        <div class="col-sm-5">
+                            <input class="form-control" name="vip_level" type="text"/>
+                        </div>
+                    </div>
+                    <!--<div class="form-group">-->
+                        <!--<label class="col-sm-4 control-label">UID:</label>-->
+                        <!--<div class="col-sm-5">-->
+                            <!--<input class="form-control" name="gamer_uid" type="int"/>-->
+                        <!--</div>-->
+                    <!--</div>-->
+                    <div class="form-group">
+                        <label class="col-sm-4 control-label">反馈时间:</label>
+                        <div class="col-sm-5">
+                            <input class="form-control time-picker" name="feedback_time" type="datetime" required="true"/>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="col-sm-4 control-label">响应时间:</label>
+
+                        <div class="col-sm-5">
+                            <input class="form-control time-picker" name="response_time" type="datetime" required="true"/>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="col-sm-4 control-label">问题描述:</label>
+
+                        <div class="col-sm-5">
+                            <textarea class="form-control" name="description" required="true"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="btnSaveConsult">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<?php
+
+?>
+<?php include("view/footer.html");?>
+<script>
+
+$(document).ready(function () {
+            $("#create-consult-form").validate();
+
+            $("#create-appeal-form").validate({rules: {
+                gamename: { notEqual: "-1" },
+                channel: { notEqual: "-1" },
+                servername: { notEqual: "-1" }
+            },
+                messages: {
+                    gamename: {
+                        notEqual: "请选择游戏"
+                    },
+                    channel: {
+                        notEqual: "请选择渠道"
+                    },
+                    servername: {
+                        notEqual: "请选择区服"
+                    }
+                }
+            });
+            var baseData = [];
+            baseData['game_servers'] = <?php echo $games ;?>;
+            $("#create-appeal-modal").on("show.bs.modal", function () {
+                $(this).find("select[name='formtype_id']").val("-1");
+                $(this).find("select[name='fsecondarytype_id']").empty().attr("disabled", "disabled");
+                $(this).find("#dynamic-form").html('');
+                console.log($(this).find("#dynamic-form"));
+
+                console.log("ON SHOW");
+            });
+
+            $("#create-consult-modal").on("show.bs.modal", function () {
+                $(this).find("form")[0].reset();
+//                $(this).find("select[name='fsecondarytype_id']").empty().attr("disabled", "disabled");
+//                $(this).find("#dynamic-form").html('');
+//                console.log($(this).find("#dynamic-form"));
+//
+//                console.log("ON SHOW");
+            });
+
+            var formDefinitions = [];
+
+            $("#create-appeal-modal").find("select[name='formtype_id']").on("change", function (e) {
+                var val = $(this).val();
+                if (val == -1) {
+                    $("#create-appeal-modal").find("select[name='fsecondarytype_id']").empty().attr("disabled", "disabled");
+                    $("#dynamic-form").html('');
+                }
+                else {
+                    var formTypeId = $(this).val();
+                    $.ajax({
+                        url: "/formtype/secondary",
+                        data: {formtype_id: formTypeId},
+                        type: "post",
+                        dataType: "json",
+                        success: function (response) {
+                            $("#create-appeal-modal").find("select[name='fsecondarytype_id']").append("<option value=\"-1\">--请选择--</option>");
+                            $(response).each(function (index, item) {
+                                var $option = $("<option value=\"" + item.id + "\">" + item.name + "</option>");
+                                $option.data("form", item.form_fields);
+                                $("#create-appeal-modal").find("select[name='fsecondarytype_id']").append($option);
+                            });
+                            $("#create-appeal-modal").find("select[name='fsecondarytype_id']").attr("disabled", false);
+
+                        }
+                    });
+                }
+            });
+
+            function buildForm(settings) {
+                var html = "";
+                $(settings).each(function (index, item) {
+                    html += '<div class="form-group">';
+                    html += '<label for="inputPassword" class="col-sm-4 control-label">' + item.label + ':</label>';
+                    html += '<div class="col-sm-5">';
+                    if (!item.type) {
+                        item.type = "text";
+                    }
+                    if (item.type == "dropdown") {
+                        html += '<select class="form-control" name="' + item.name + '"';
+                        if (item.sub) {
+                            html += 'data-sub="' + item.sub + '"';
+                        }
+                        if (item.data_source) {
+                            html += 'data-data-source="' + item.data_source + '"';
+                        }
+
+                        html += '>';
+                        html += '<option value="-1">--请选择--</option>';
+                        if (item.data_source) {
+                            //TODO 填充下拉数据
+                            var options = baseData[item.data_source];
+                            for (var dataKey in options) {
+                                html += '<option value="' + dataKey + '">' + options[dataKey].name + '</option>';
+                            }
+                        }
+                        html += "</select>";
+                    }
+                    else {
+                        html += '<input class="form-control" type="' + item.type + '"';
+                        if (item.required) {
+                            html += ' required ';
+                        }
+                        html += ' name="' + item.name + '">';
+                    }
+                    html += '</div>';
+                    html += '</div>';
+                });
+//                html += "</form>";
+                var $html = $(html);
+
+
+                function bindEvents($form) {
+                    function clearSelections($select) {
+                        var sub = $select.data("sub");
+                        if (sub) {
+                            var $subSelect = $form.find("select[name=" + sub + "]");
+                            clearSelections($subSelect);
+                        }
+                        $select.empty();
+                        $select.append("<option value=\"-1\">--请选择--</option>");
+                    }
+
+                    function setupSubSelections($select) {
+                        var val = $select.val();
+                        var sub = $select.data("sub");
+
+                        if (sub) {
+                            var $subSelect = $form.find("select[name=" + sub + "]");
+                            clearSelections($subSelect);
+                            if (val != -1) {
+                                var dataSource = $select.data("data-source");
+                                var data = null;
+                                if (dataSource) {
+                                    data = baseData[dataSource];
+                                }
+                                else {
+                                    data = $select.data("sub-data");
+                                }
+
+                                data = data[val].subs;
+                                for (var dataKey in data) {
+                                    $option = '<option value="' + dataKey + '">' + data[dataKey].name + '</option>';
+                                    $subSelect.append($option);
+                                }
+                                $subSelect.data("sub-data", data);
+                            }
+                        }
+                    }
+
+                    //级联操作
+                    $form.find('select').on("change", function (e) {
+                        var value = $(this).val();
+                        var sub = $(this).data("sub");
+                        var dataSource = $(this).data("data-source");
+                        setupSubSelections($(this));
+                    });
+                }
+
+//                function setupValidation($html) {
+//                    var $form = $("<form></form>").append($html);
+//                    $form.validate();
+//                    return $form;
+//                }
+
+                bindEvents($html);
+//                $html = setupValidation($html);
+
+
+                return $html;
+            }
+
+            $("#create-appeal-modal").find("select[name='fsecondarytype_id']").on("change", function (e) {
+                        var val = $(this).val();
+
+                        if (val == -1) {
+                            $("#dynamic-form").html('');
+                        }
+                        var optionSelected = $("option:selected", this);
+                        var formSettings = JSON.parse($(optionSelected).data("form"));
+                        var $html = buildForm(formSettings);
+                        $("#dynamic-form").html($html);
+
+                        $("#btnSaveTask").attr("disabled", false);
+                    }
+            );
+
+
+            $("#btnSaveTask").click(function (e) {
+                var $btn = $(this);
+                if ($("#create-appeal-form").valid()) {
+                    $btn.attr("disabled", "disabled");
+                    $("#create-appeal-form").ajaxSubmit({
+                        dateType: "json",
+                        success: function (response) {
+                            if (response.result === false) {
+                                bootbox.alert({
+                                    message: "工单保存失败:" + response.errMsg,
+                                    title: "警告"
+                                });
+                                $btn.attr("disabled", "");
+                                return;
+                            }
+                            $btn.attr("disabled", "");
+                            currentAppealId = response.appeal_id;
+                            console.log("Appeal ID:", currentAppealId);
+//                            alert("工单保存成功");
+                            bootbox.dialog({
+                                message: "工单保存成功",
+                                title: "提示",
+                                buttons: {
+                                    close: {
+                                        label: "确认",
+                                        className: "btn-success",
+                                        callback: function () {
+                                        }
+                                    },
+                                    assign: {
+                                        label: "指派",
+                                        className: "btn-danger",
+                                        callback: function () {
+                                            $("#assign-modal").modal("show");
+                                        }
+                                    }
+                                }
+                            });
+                            $("#create-appeal-modal").modal("hide");
+                        }
+                    });
+                }
+            });
+
+
+            $("#btnSaveConsult").click(function (e) {
+                var $btn = $(this);
+                if ($("#create-consult-form").valid()) {
+                $btn.attr("disabled", "disabled");
+                $("#create-consult-form").ajaxSubmit({
+                    dateType: "json",
+                    success: function (response) {
+                        if (response.success === true) {
+                            $("#create-consult-modal").modal("hide");
+                            bootbox.alert({
+                                message: "咨询保存成功",
+                                title: "提示"
+                            });
+                        }
+                        else
+                        {
+                            console.log(response);
+                            bootbox.alert({
+                                    message: "工单保存失败:" + response.errMsg,
+                                    title: "警告"
+                                });
+                        }
+                        $btn.removeAttr("disabled");
+                    }
+                });
+                }
+            });
+
+            function showCreateAppealModal(sourceId) {
+                $("#create-appeal-modal").find("select[name='sourcetype_id']").val(sourceId);
+                $("#create-appeal-modal").modal({
+                    backdrop: 'static'
+                })
+                $("#create-appeal-modal").modal("show");
+
+            }
+
+            $("a").click(function (e) {
+                        var target = e.toElement || e.target;
+                        var action = $(target).data("action");
+
+                        if (action) {
+                            e.preventDefault();
+                            if (action == "create-appeal") {
+                                showCreateAppealModal($(target).data("source-id"));
+                            }
+                        }
+                    }
+            );
+            $("#table-myappeals > tbody > tr").click(function (e) {
+                var appealId = $(this).data("id");
+
+                showInfo(appealId, true);
+            });
+
+
+            $("#select-account").on("change", function () {
+                if ($(this).val() == -1) {
+                    $("#btnAssign").attr("disabled", "disabled");
+                }
+                else {
+                    console.log("user selected");
+                    $("#btnAssign").attr("disabled", false);
+                }
+            });
+
+            $("#select-account-group").on("change", function (e) {
+                console.log($(this).val());
+
+                var val = $(this).val();
+                if (val == -1) {
+                    $("#select-account").empty().attr("disabled", "disabled");
+                    $("#btnAssign").attr("disabled", "disabled");
+                } else {
+                    var rolenameValue = $(this).val();
+                    $.ajax({
+                        url: "/formtype/getRoleMember",
+                        data: {rolename: rolenameValue},
+                        type: "post",
+                        dataType: "json",
+                        success: function (response) {
+                            console.log("Role MemberList:", response);
+                            $("#select-account").empty();
+                            $("#select-account").append("<option value=\"-1\">--选择组成员--</option>");
+                            $(response).each(function (index, item) {
+                                var $option = $("<option value=\"" + item + "\">" + item + "</option>");
+                                $("#select-account").append($option);
+                            });
+                            $("#select-account").attr("disabled", false);
+                        }
+                    });
+                }
+            });
+
+
+            $("#btnAssign").click(function () {
+                $.ajax({
+                    url: "/assign/assign",
+                    data: {
+                        appeal_id: currentAppealId,
+                        user_belong_role: $("#select-account-group").val(),
+                        user_belong: $("#select-account").val()
+                    },
+                    type: "post",
+                    dataType: "json",
+                    success: function (response) {
+                        console.log(response);
+                        if (response.success) {
+                            bootbox.alert("指派成功");
+                            $("#assign-modal").modal("hide");
+                        } else {
+                            bootbox.alert(response.msg);
+                        }
+                    },
+                    failed: function (resposne) {
+                        bootbox.alert("服务器错误");
+                    }
+                });
+            });
+
+
+            $("#addConsult").click(function () {
+                $("#create-consult-modal").modal({
+                    backdrop: 'static'
+                })
+                $("#create-consult-modal").modal("show");
+            });
+
+
+            console.log($(".time-picker")[0]);
+            $(".time-picker").datetimepicker(
+                    {
+                        dateFormat : "yy-mm-dd"
+                    }
+            );
+        }
+
+)
+
+</script>

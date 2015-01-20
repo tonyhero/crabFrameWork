@@ -1,0 +1,16 @@
+{
+    "name": "PlayCrabCustomServiceCenter",
+    "version": "1.0.0",
+    "directory": "static/bower_components",
+    "dependencies": {
+        "jquery": "latest",
+        "jquery-ui": "latest",
+        "bootstrap": "latest",
+        "bootbox": "latest",
+        "jquery-form": "latest",
+        "jqgrid": "latest",
+        "smalot-bootstrap-datetimepicker": "latest",
+        "datatables": "latest",
+        "jquery-validation": "latest"
+    }
+}
